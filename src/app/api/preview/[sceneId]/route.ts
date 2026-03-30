@@ -7,22 +7,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ sce
   try {
     const compiled = await compileScenePlayback(sceneId);
 
-    // Map to legacy ScenePreviewData shape for PreviewPanel compatibility
-    const previewData = {
-      sceneId: compiled.sceneId,
-      sceneTitle: compiled.sceneTitle,
-      cues: compiled.cues,
-      assets: compiled.assets.map((a) => ({
-        slotId: a.slotId,
-        slotName: a.slotName,
-        slotType: a.slotType,
-        assetId: a.assetId,
-        filePath: a.filePath,
-      })),
-    };
-
-    return NextResponse.json(previewData);
-  } catch {
-    return NextResponse.json({ error: "scene not found" }, { status: 404 });
+    return NextResponse.json(compiled);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "scene not found";
+    console.error("[preview/scene] compile error:", message);
+    return NextResponse.json({ error: message }, { status: 404 });
   }
 }

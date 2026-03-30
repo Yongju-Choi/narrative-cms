@@ -110,7 +110,7 @@ export async function exportProject(projectId: string): Promise<ExportResult> {
       exists = true;
     } catch {}
 
-    const slots = asset.assignments.map((a) => ({
+    const slots = asset.assignments.map((a: { assetSlot: { id: string; name: string; sceneId: string | null; premiumChoiceId: string | null } }) => ({
       slotId: a.assetSlot.id,
       slotName: a.assetSlot.name,
       sceneId: a.assetSlot.sceneId || "",
@@ -151,7 +151,7 @@ export async function exportProject(projectId: string): Promise<ExportResult> {
   const promptManifest = {
     version: 1,
     generatedAt: new Date().toISOString(),
-    specs: allPromptSpecs.map((ps) => ({
+    specs: allPromptSpecs.map((ps: typeof allPromptSpecs[number]) => ({
       id: ps.id,
       promptType: ps.promptType,
       title: ps.title,

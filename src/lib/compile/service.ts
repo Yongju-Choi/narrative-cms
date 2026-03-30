@@ -37,7 +37,7 @@ interface AssetSlotData {
   name: string;
   assetType: string;
   required: boolean;
-  assignment?: { asset: { id: string; filePath: string } } | null;
+  assignment?: { asset: { id: string; filePath: string; fileName: string; status: string } } | null;
 }
 
 function buildCueArray(
@@ -110,6 +110,8 @@ async function buildAssetRefs(slots: AssetSlotData[]): Promise<CompiledAssetRef[
         slotType: s.assetType,
         assetId: s.assignment?.asset.id ?? null,
         filePath,
+        displayName: s.assignment?.asset.fileName ?? s.name,
+        isApproved: s.assignment?.asset.status === "approved",
         required: s.required,
         exists: filePath ? await checkFileExists(filePath) : false,
       };
@@ -118,10 +120,21 @@ async function buildAssetRefs(slots: AssetSlotData[]): Promise<CompiledAssetRef[
 }
 
 function buildInitialAssetState(assets: CompiledAssetRef[]): SceneAssetState {
+  const assigned = assets.filter((a) => a.assetId);
+  const bg = assigned.find((a) => a.slotType === "background");
+  const chars = assigned.filter((a) => a.slotType === "character");
+  const bgm = assigned.find((a) => a.slotType === "bgm");
+  const imgs = assigned.filter((a) => a.slotType === "message_image");
+  const vids = assigned.filter((a) => a.slotType === "short_video");
+
   return {
-    background: assets.find((a) => a.slotType === "background" && a.assetId) ?? null,
-    characters: assets.filter((a) => a.slotType === "character" && a.assetId),
-    bgm: assets.find((a) => a.slotType === "bgm" && a.assetId) ?? null,
+    assetsByType: {
+      ...(bg ? { background: bg } : {}),
+      ...(chars.length > 0 ? { characters: chars } : {}),
+      ...(bgm ? { bgm } : {}),
+      ...(imgs.length > 0 ? { messageImages: imgs } : {}),
+      ...(vids.length > 0 ? { shortVideos: vids } : {}),
+    },
   };
 }
 
@@ -197,7 +210,7 @@ export async function compileScriptPlayback(scriptId: string): Promise<CompiledS
 
   const scenes = await Promise.all(script.scenes.map(compileSceneFromData));
 
-  const sequences: CompiledSequence[] = script.sequences.map((seq) => ({
+  const sequences: CompiledSequence[] = script.sequences.map((seq: { id: string; title: string; orderIndex: number }) => ({
     sequenceId: seq.id,
     sequenceTitle: seq.title,
     orderIndex: seq.orderIndex,
@@ -238,9 +251,9 @@ export async function compileProjectRuntime(projectId: string): Promise<Compiled
   });
 
   const scripts: CompiledScript[] = await Promise.all(
-    project.scripts.map(async (script) => {
+    project.scripts.map(async (script: { id: string; title: string; sequences: { id: string; title: string; orderIndex: number }[]; scenes: SceneWithRelations[] }) => {
       const scenes = await Promise.all(script.scenes.map(compileSceneFromData));
-      const sequences: CompiledSequence[] = script.sequences.map((seq) => ({
+      const sequences: CompiledSequence[] = script.sequences.map((seq: { id: string; title: string; orderIndex: number }) => ({
         sequenceId: seq.id,
         sequenceTitle: seq.title,
         orderIndex: seq.orderIndex,

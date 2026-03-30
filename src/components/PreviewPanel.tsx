@@ -2,6 +2,25 @@
 
 import { useState } from "react";
 
+interface AssetRef {
+  slotId: string;
+  slotName: string;
+  slotType: string;
+  displayName: string;
+  isApproved: boolean;
+  exists: boolean;
+}
+
+interface AssetState {
+  assetsByType: {
+    background?: AssetRef;
+    characters?: AssetRef[];
+    bgm?: AssetRef;
+    messageImages?: AssetRef[];
+    shortVideos?: AssetRef[];
+  };
+}
+
 interface ChoiceCue {
   id: string;
   label: string;
@@ -23,6 +42,7 @@ interface ScenePreviewData {
   sceneId: string;
   sceneTitle: string;
   cues: PreviewCue[];
+  initialAssetState?: AssetState | null;
 }
 
 export default function PreviewPanel({ sceneId }: { sceneId: string }) {
@@ -101,6 +121,27 @@ export default function PreviewPanel({ sceneId }: { sceneId: string }) {
           닫기
         </button>
       </div>
+
+      {/* Asset State Bar */}
+      {data.initialAssetState && (() => {
+        const t = data.initialAssetState.assetsByType;
+        return (
+          <div style={{ padding: "6px 16px", background: "#0d1b2a", display: "flex", gap: 10, flexWrap: "wrap", fontSize: 11 }}>
+            <span style={{ color: t.background ? (t.background.isApproved ? "#6a6" : "#ca6") : "#666" }}>
+              BG: {t.background ? t.background.displayName : "없음"}
+              {t.background && !t.background.isApproved && <span style={{ color: "#ca6" }}> ⚠</span>}
+              {t.background && !t.background.exists && <span style={{ color: "#f66" }}> ✗</span>}
+            </span>
+            <span style={{ color: (t.characters?.length || 0) > 0 ? "#6a6" : "#666" }}>
+              CHAR: {(t.characters?.length || 0) > 0 ? t.characters!.map((c) => c.displayName).join(", ") : "없음"}
+            </span>
+            <span style={{ color: t.bgm ? (t.bgm.isApproved ? "#6a6" : "#ca6") : "#666" }}>
+              BGM: {t.bgm ? t.bgm.displayName : "없음"}
+              {t.bgm && !t.bgm.isApproved && <span style={{ color: "#ca6" }}> ⚠</span>}
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Content area */}
       <div style={{ minHeight: 200, padding: 24, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>

@@ -6,7 +6,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ scr
   try {
     const compiled = await compileScriptPlayback(scriptId);
     return NextResponse.json(compiled);
-  } catch {
-    return NextResponse.json({ error: "script not found" }, { status: 404 });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "script not found";
+    console.error("[preview/script] compile error:", message);
+    return NextResponse.json({ error: message }, { status: 404 });
   }
 }

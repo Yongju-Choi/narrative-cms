@@ -38,7 +38,7 @@ export async function validateScene(sceneId: string): Promise<ValidationResult> 
   });
 
   const issues: ValidationIssue[] = [];
-  const validSceneIds = new Set(scene.script.scenes.map((s) => s.id));
+  const validSceneIds = new Set(scene.script.scenes.map((s: { id: string }) => s.id));
 
   // SCENE_NO_BLOCKS
   if (scene.eventBlocks.length === 0) {
@@ -152,8 +152,8 @@ export async function validateScene(sceneId: string): Promise<ValidationResult> 
   }
 
   // ORDER_INDEX_DUPLICATE
-  const orderIndices = scene.eventBlocks.map((eb) => eb.orderIndex);
-  const duplicates = orderIndices.filter((v, i) => orderIndices.indexOf(v) !== i);
+  const orderIndices = scene.eventBlocks.map((eb: { orderIndex: number }) => eb.orderIndex);
+  const duplicates = orderIndices.filter((v: number, i: number) => orderIndices.indexOf(v) !== i);
   if (duplicates.length > 0) {
     issues.push({
       severity: "warning",
@@ -166,7 +166,7 @@ export async function validateScene(sceneId: string): Promise<ValidationResult> 
 
   // PREVIEW_INCOMPLETE
   if (scene.eventBlocks.length > 0) {
-    const hasContent = scene.eventBlocks.some((eb) => eb.content.trim().length > 0);
+    const hasContent = scene.eventBlocks.some((eb: { content: string }) => eb.content.trim().length > 0);
     if (!hasContent) {
       issues.push({
         severity: "warning",
@@ -260,7 +260,7 @@ export async function validateScript(scriptId: string): Promise<ValidationResult
   }
 
   // SCENE_INVALID_SEQUENCE — scene references a sequence not in this script
-  const validSeqIds = new Set(script.sequences.map((s) => s.id));
+  const validSeqIds = new Set(script.sequences.map((s: { id: string }) => s.id));
   for (const scene of script.scenes) {
     if (scene.sequenceId && !validSeqIds.has(scene.sequenceId)) {
       issues.push({
@@ -274,8 +274,8 @@ export async function validateScript(scriptId: string): Promise<ValidationResult
   }
 
   // SEQUENCE_ORDER_DUPLICATE
-  const seqIndices = script.sequences.map((s) => s.orderIndex);
-  const seqDups = seqIndices.filter((v, i) => seqIndices.indexOf(v) !== i);
+  const seqIndices = script.sequences.map((s: { orderIndex: number }) => s.orderIndex);
+  const seqDups = seqIndices.filter((v: number, i: number) => seqIndices.indexOf(v) !== i);
   if (seqDups.length > 0) {
     issues.push({
       severity: "warning",
@@ -288,7 +288,7 @@ export async function validateScript(scriptId: string): Promise<ValidationResult
 
   // SEQUENCE_EMPTY — sequences with no scenes
   for (const seq of script.sequences) {
-    const sceneCount = script.scenes.filter((s) => s.sequenceId === seq.id).length;
+    const sceneCount = script.scenes.filter((s: { sequenceId: string | null }) => s.sequenceId === seq.id).length;
     if (sceneCount === 0) {
       issues.push({
         severity: "warning",
@@ -301,8 +301,8 @@ export async function validateScript(scriptId: string): Promise<ValidationResult
   }
 
   // Check scene navigation
-  const hasAnyNavigation = script.scenes.some((s) =>
-    s.premiumChoices.some((pc) => pc.nextSceneId || pc.fallbackSceneId)
+  const hasAnyNavigation = script.scenes.some((s: { premiumChoices: { nextSceneId: string | null; fallbackSceneId: string | null }[] }) =>
+    s.premiumChoices.some((pc: { nextSceneId: string | null; fallbackSceneId: string | null }) => pc.nextSceneId || pc.fallbackSceneId)
   );
   if (!hasAnyNavigation && script.scenes.length > 1) {
     issues.push({
@@ -317,6 +317,85 @@ export async function validateScript(scriptId: string): Promise<ValidationResult
   for (const scene of script.scenes) {
     const sceneResult = await validateScene(scene.id);
     issues.push(...sceneResult.issues);
+  }
+
+  return result(issues);
+}
+
+export async function validateScriptGeneration(generationId: string): Promise<ValidationResult> {
+  const gen = await prisma.scriptGeneration.findUniqueOrThrow({
+    where: { id: generationId },
+    include: {
+      importedScripts: { select: { id: true } },
+    },
+  });
+
+  const issues: ValidationIssue[] = [];
+
+  if (!gen.provider || !gen.modelName) {
+    issues.push({
+      severity: "error",
+      code: "GEN_MISSING_PROVIDER",
+      message: `생성 설정에 provider 또는 modelName이 없습니다.`,
+      entityType: "ScriptGeneration",
+      entityId: gen.id,
+    });
+  }
+
+  if (gen.status === "generated" && !gen.rawOutput) {
+    issues.push({
+      severity: "error",
+      code: "GEN_GENERATED_NO_OUTPUT",
+      message: `생성 상태가 "generated"이지만 rawOutput이 비어 있습니다.`,
+      entityType: "ScriptGeneration",
+      entityId: gen.id,
+    });
+  }
+
+  if (gen.status === "imported" && gen.importedScripts.length === 0) {
+    issues.push({
+      severity: "warning",
+      code: "GEN_IMPORTED_NO_SCRIPT",
+      message: `생성 상태가 "imported"이지만 연결된 스크립트가 없습니다.`,
+      entityType: "ScriptGeneration",
+      entityId: gen.id,
+    });
+  }
+
+  if (gen.status === "failed") {
+    issues.push({
+      severity: "warning",
+      code: "GEN_FAILED",
+      message: `생성이 실패했습니다: ${gen.errorMessage || "알 수 없는 오류"}`,
+      entityType: "ScriptGeneration",
+      entityId: gen.id,
+    });
+  }
+
+  if (gen.status === "draft" && !gen.rawOutput) {
+    issues.push({
+      severity: "warning",
+      code: "GEN_NO_OUTPUT_FOR_IMPORT",
+      message: `아직 생성이 실행되지 않았습니다. 가져오기 전에 먼저 생성을 실행하세요.`,
+      entityType: "ScriptGeneration",
+      entityId: gen.id,
+    });
+  }
+
+  return result(issues);
+}
+
+export async function validateProjectGenerations(projectId: string): Promise<ValidationResult> {
+  const generations = await prisma.scriptGeneration.findMany({
+    where: { projectId },
+    select: { id: true },
+  });
+
+  const issues: ValidationIssue[] = [];
+
+  for (const gen of generations) {
+    const genResult = await validateScriptGeneration(gen.id);
+    issues.push(...genResult.issues);
   }
 
   return result(issues);

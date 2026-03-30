@@ -34,14 +34,20 @@ export interface CompiledAssetRef {
   slotType: string;
   assetId: string | null;
   filePath: string | null;
+  displayName: string;
+  isApproved: boolean;
   required: boolean;
   exists: boolean;
 }
 
 export interface SceneAssetState {
-  background: CompiledAssetRef | null;
-  characters: CompiledAssetRef[];
-  bgm: CompiledAssetRef | null;
+  assetsByType: {
+    background?: CompiledAssetRef;
+    characters?: CompiledAssetRef[];
+    bgm?: CompiledAssetRef;
+    messageImages?: CompiledAssetRef[];
+    shortVideos?: CompiledAssetRef[];
+  };
 }
 
 export interface CompiledScene {

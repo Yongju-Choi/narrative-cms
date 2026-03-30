@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -25,7 +25,7 @@ model Script {
   id        String   @id @default(cuid())
   projectId String
   title     String
-  rawText   String   @db.Text
+  rawText   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -42,12 +42,12 @@ model Sequence {
   id         String  @id @default(cuid())
   scriptId   String
   title      String
-  summary    String? @db.Text
+  summary    String?
   orderIndex Int
 
-  directionSummary String? @db.Text
+  directionSummary String?
   moodKeywords     String?
-  visualNotes      String? @db.Text
+  visualNotes      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -62,7 +62,7 @@ model Scene {
   scriptId   String
   sequenceId String?
   title      String
-  summary    String? @db.Text
+  summary    String?
   mood       String?
   location   String?
   timeOfDay  String?
@@ -79,7 +79,7 @@ model Scene {
   promptSpecs    PromptSpec[]
 
   // Reverse relations for scene navigation
-  choicesLeadingHere    PremiumChoice[] @relation("ChoiceNextScene")
+  choicesLeadingHere     PremiumChoice[] @relation("ChoiceNextScene")
   choicesFallingBackHere PremiumChoice[] @relation("ChoiceFallbackScene")
 }
 
@@ -90,9 +90,9 @@ model EventBlock {
   type       String // "dialogue" | "narration" | "action" | "system" | "choice_trigger"
 
   speaker    String?
-  content    String  @db.Text
+  content    String
   emotionTag String?
-  metadata   String? @db.Text
+  metadata   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -180,11 +180,11 @@ model ScriptGeneration {
   projectId    String
   provider     String // "openai" | "gemini" | "grok" | "mock"
   modelName    String
-  userPrompt   String  @db.Text
-  systemPrompt String? @db.Text
+  userPrompt   String
+  systemPrompt String?
   temperature  Float   @default(0.7)
-  rawOutput    String? @db.Text
-  parsedOutput String? @db.Text
+  rawOutput    String?
+  parsedOutput String?
   status       String  @default("draft") // "draft" | "generated" | "imported" | "failed"
   errorMessage String?
 
@@ -206,9 +206,9 @@ model PromptSpec {
 
   promptType     String // "image" | "video" | "audio" | "background" | "character" | "message_image"
   title          String
-  intentSummary  String? @db.Text
-  promptText     String  @db.Text
-  negativePrompt String? @db.Text
+  intentSummary  String?
+  promptText     String
+  negativePrompt String?
   modelTarget    String?
   aspectRatio    String?
   durationSec    Float?
@@ -231,7 +231,7 @@ model PromptPreset {
   projectId   String?
   name        String
   presetType  String // "style" | "character" | "clothing" | "camera" | "background" | "lighting" | "video_motion"
-  content     String  @db.Text
+  content     String
   description String?
 
   createdAt DateTime @default(now())
