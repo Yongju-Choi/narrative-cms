@@ -1,0 +1,241 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scripts           Script[]
+  assets            Asset[]
+  scriptGenerations ScriptGeneration[]
+  promptSpecs       PromptSpec[]
+  promptPresets     PromptPreset[]
+}
+
+model Script {
+  id        String   @id @default(cuid())
+  projectId String
+  title     String
+  rawText   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sourceGenerationId String?
+
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceGeneration ScriptGeneration? @relation(fields: [sourceGenerationId], references: [id], onDelete: SetNull)
+  sequences        Sequence[]
+  scenes           Scene[]
+  promptSpecs      PromptSpec[]
+}
+
+model Sequence {
+  id         String  @id @default(cuid())
+  scriptId   String
+  title      String
+  summary    String? @db.Text
+  orderIndex Int
+
+  directionSummary String? @db.Text
+  moodKeywords     String?
+  visualNotes      String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  script      Script       @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  scenes      Scene[]
+  promptSpecs PromptSpec[]
+}
+
+model Scene {
+  id         String  @id @default(cuid())
+  scriptId   String
+  sequenceId String?
+  title      String
+  summary    String? @db.Text
+  mood       String?
+  location   String?
+  timeOfDay  String?
+  orderIndex Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  script         Script          @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  sequence       Sequence?       @relation(fields: [sequenceId], references: [id], onDelete: SetNull)
+  eventBlocks    EventBlock[]
+  premiumChoices PremiumChoice[] @relation("SceneChoices")
+  assetSlots     AssetSlot[]
+  promptSpecs    PromptSpec[]
+
+  // Reverse relations for scene navigation
+  choicesLeadingHere    PremiumChoice[] @relation("ChoiceNextScene")
+  choicesFallingBackHere PremiumChoice[] @relation("ChoiceFallbackScene")
+}
+
+model EventBlock {
+  id         String  @id @default(cuid())
+  sceneId    String
+  orderIndex Int
+  type       String // "dialogue" | "narration" | "action" | "system" | "choice_trigger"
+
+  speaker    String?
+  content    String  @db.Text
+  emotionTag String?
+  metadata   String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scene          Scene           @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  premiumChoices PremiumChoice[]
+}
+
+model PremiumChoice {
+  id             String @id @default(cuid())
+  sceneId        String
+  triggerBlockId String
+  label          String
+  orderIndex     Int
+
+  isPremium Boolean @default(true)
+  isLocked  Boolean @default(false)
+  price     Int?
+
+  nextSceneId     String?
+  fallbackSceneId String?
+  unlockLabel     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scene         Scene      @relation("SceneChoices", fields: [sceneId], references: [id], onDelete: Cascade)
+  triggerBlock  EventBlock @relation(fields: [triggerBlockId], references: [id], onDelete: Cascade)
+  nextScene     Scene?     @relation("ChoiceNextScene", fields: [nextSceneId], references: [id], onDelete: SetNull)
+  fallbackScene Scene?     @relation("ChoiceFallbackScene", fields: [fallbackSceneId], references: [id], onDelete: SetNull)
+  assetSlots    AssetSlot[]
+  promptSpecs   PromptSpec[]
+}
+
+model AssetSlot {
+  id          String  @id @default(cuid())
+  name        String
+  assetType   String // "background" | "character" | "message_image" | "short_video" | "bgm" | "sfx"
+  description String?
+  required    Boolean @default(false)
+  status      String  @default("empty") // "empty" | "assigned" | "approved"
+  orderIndex  Int     @default(0)
+
+  sceneId         String?
+  premiumChoiceId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scene         Scene?         @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  premiumChoice PremiumChoice? @relation(fields: [premiumChoiceId], references: [id], onDelete: Cascade)
+  assignment    AssetAssignment?
+  promptSpecs   PromptSpec[]
+}
+
+model Asset {
+  id        String @id @default(cuid())
+  projectId String
+  fileName  String
+  filePath  String
+  mimeType  String
+  fileSize  Int
+  status    String @default("draft") // "draft" | "selected" | "approved" | "deprecated"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignments AssetAssignment[]
+}
+
+model AssetAssignment {
+  id          String @id @default(cuid())
+  assetSlotId String @unique
+  assetId     String
+
+  assignedAt DateTime @default(now())
+
+  assetSlot AssetSlot @relation(fields: [assetSlotId], references: [id], onDelete: Cascade)
+  asset     Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+}
+
+model ScriptGeneration {
+  id           String  @id @default(cuid())
+  projectId    String
+  provider     String // "openai" | "gemini" | "grok" | "mock"
+  modelName    String
+  userPrompt   String  @db.Text
+  systemPrompt String? @db.Text
+  temperature  Float   @default(0.7)
+  rawOutput    String? @db.Text
+  parsedOutput String? @db.Text
+  status       String  @default("draft") // "draft" | "generated" | "imported" | "failed"
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  importedScripts Script[]
+}
+
+model PromptSpec {
+  id              String  @id @default(cuid())
+  projectId       String
+  scriptId        String?
+  sequenceId      String?
+  sceneId         String?
+  premiumChoiceId String?
+  assetSlotId     String?
+
+  promptType     String // "image" | "video" | "audio" | "background" | "character" | "message_image"
+  title          String
+  intentSummary  String? @db.Text
+  promptText     String  @db.Text
+  negativePrompt String? @db.Text
+  modelTarget    String?
+  aspectRatio    String?
+  durationSec    Float?
+  status         String  @default("draft") // "draft" | "reviewed" | "approved"
+  version        Int     @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  script        Script?        @relation(fields: [scriptId], references: [id], onDelete: SetNull)
+  sequence      Sequence?      @relation(fields: [sequenceId], references: [id], onDelete: SetNull)
+  scene         Scene?         @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  premiumChoice PremiumChoice? @relation(fields: [premiumChoiceId], references: [id], onDelete: SetNull)
+  assetSlot     AssetSlot?     @relation(fields: [assetSlotId], references: [id], onDelete: SetNull)
+}
+
+model PromptPreset {
+  id          String  @id @default(cuid())
+  projectId   String?
+  name        String
+  presetType  String // "style" | "character" | "clothing" | "camera" | "background" | "lighting" | "video_motion"
+  content     String  @db.Text
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
